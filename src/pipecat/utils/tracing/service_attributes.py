@@ -418,14 +418,28 @@ def add_openai_realtime_span_attributes(
     span.set_attribute("gen_ai.operation.name", operation_name)
     span.set_attribute("service.operation", operation_name)
 
+    # LangSmith span kind mapping
+    if operation_name in ("llm_response", "llm_request", "llm_setup"):
+        span.set_attribute("langsmith.span.kind", "llm")
+    elif operation_name == "stt":
+        span.set_attribute("langsmith.span.kind", "chain")
+    else:
+        span.set_attribute("langsmith.span.kind", "chain")
+
     # Add optional attributes
     if transcript:
         span.set_attribute("transcript", transcript)
         if is_input is not None:
             span.set_attribute("transcript.is_input", is_input)
+        # LangSmith-compatible input mapping
+        if is_input:
+            span.set_attribute("gen_ai.prompt.0.role", "user")
+            span.set_attribute("gen_ai.prompt.0.content", transcript)
 
     if context_messages:
         span.set_attribute("input", context_messages)
+        # LangSmith-compatible input mapping
+        span.set_attribute("gen_ai.prompt", context_messages)
 
     if audio_data_size is not None:
         span.set_attribute("audio.data_size_bytes", audio_data_size)
@@ -477,3 +491,9 @@ def add_openai_realtime_span_attributes(
     for key, value in kwargs.items():
         if isinstance(value, (str, int, float, bool)):
             span.set_attribute(key, value)
+
+    # LangSmith-compatible output mapping for assistant transcript
+    output_text = kwargs.get("output")
+    if output_text and isinstance(output_text, str):
+        span.set_attribute("gen_ai.completion.0.role", "assistant")
+        span.set_attribute("gen_ai.completion.0.content", output_text)
